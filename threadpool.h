@@ -12,11 +12,55 @@
 #include <mutex>
 #include <condition_variable>
 #include <functional>
+
+//Any类型：可以接收任意数据类型
+class Any {
+public:
+    Any() = default;
+    ~Any() = default;
+    Any(const Any &) = delete;
+    Any &operator=(const Any &) = delete;
+    Any(Any &&) = default;
+    Any &operator=(Any &&) = default;
+
+    //这个构造函数可以让Any类型接收任意其他数据
+    template <typename T>
+    Any(T data) :base_(std::make_unique<Derive<T>>(data)) {}
+
+    //这个方法可以把Any里面的对象提取出来
+    template <typename T>
+    T cast_() {
+        //从base_找到所指向的Derive对象，从它里面取出data
+        //基类指针转成派生类指针
+        Derive<T> *pd = dynamic_cast<Derive<T>*>(base_.get());
+        if (pd == nullptr) {
+            throw "type is unmatch!";
+        }
+        return pd -> data_;
+    }
+private:
+    //基类类型
+    class Base {
+    public:
+        virtual ~Base() = default;
+    };
+
+    //派生类型
+    template <typename T>
+    class Derive : public Base {
+    public:
+        Derive(T data): data_(data) {}
+        T data_; //保存了其他类型
+    };
+private:
+    std::unique_ptr<Base> base_;
+};
+
 //任务抽象基类
 //用户可以自定义任意任务类型，从Task继承，重写run方法
 class Task {
 public:
-    virtual  void run() = 0;
+    virtual Any run() = 0;
 };
 
 // 线程池支持的模式
@@ -41,6 +85,18 @@ private:
     ThreadFunc func_;
 };
 
+/**
+example:
+ThreadPool pool;
+pool.start(4);
+
+class MyTask : public task{
+public:
+    void run() { // 线程代码...}
+}；
+
+pool.submitTask(std::make_shared<MyTask>());
+*/
 // 线程池类型
 class ThreadPool {
 public:
