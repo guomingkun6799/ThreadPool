@@ -35,7 +35,13 @@ void ThreadPool::submitTask(std::shared_ptr<Task> sp) {
     // 获取锁,生产者和消费者消费同一个队列需要线程互斥
     std::unique_lock<std::mutex> lock(taskQueMtx_);
     // 线程的通信，通过信号量等待任务队列有空余
-    notFull_.wait(lock, [&]() -> bool { return taskQueue_.size() < taskQueMaxThreshhold_; });
+    //用户提交任务，最长不能阻塞超过1s，否则判断提交任务失败
+    if (!notFull_.wait_for(lock, std::chrono::seconds(1)
+        ,[&]() -> bool { return taskQueue_.size() < taskQueMaxThreshhold_; })) {
+        //表示notFull_等待1s，条件仍然没满足
+        std::cerr << "task queue is full, submit task fail." << std::endl;
+        return;
+    }
     // 如果有空余，把任务放入任务队列中
     taskQueue_.emplace(sp);
     taskSize_++;
@@ -61,10 +67,34 @@ void ThreadPool::start(int initThreadSize) {
     }
 }
 
+//定义线程函数 线程池所有线程从任务队列里消费任务
 void ThreadPool::threadFunc() {
-    std::cout << "begin threadFunc tid:"<<std::this_thread::get_id() << std::endl;
-    std::cout << "end threadFunc" << std::endl;
+    for (;;) {
+        std::shared_ptr<Task> task;
+        //区别作用域，把锁及时释放掉
+        {
+            // 获取锁
+            std::unique_lock<std::mutex> lock(taskQueMtx_);
+            // 等待notEmpty
+            notEmpty_.wait(lock, [&]() -> bool {return taskQueue_.size() > 0;});
+            // 取一个任务队列中取一个任务出来
+            task = taskQueue_.front();
+            taskQueue_.pop();
+            taskSize_--;
 
+            //如果依然有剩余任务，继续通知其他线程执行任务
+            if (taskQueue_.size() > 0) {
+                notFull_.notify_all();
+            }
+
+            //取出一个任务，进行通知
+            notFull_.notify_all();
+        }
+        // 当前线程负责执行这个任务
+        if (task != nullptr) {
+            task -> run();
+        }
+    }
 }
 
 //--------------------- 线程方法实现-----------------------------
