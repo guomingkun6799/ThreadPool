@@ -83,11 +83,38 @@ private:
     std::mutex mutex_;
     std::condition_variable cond_;
 };
+
+class Result;
+
 //任务抽象基类
 //用户可以自定义任意任务类型，从Task继承，重写run方法
 class Task {
 public:
+    Task();
+    ~Task() = default;
+    void exec();
+    void setResult(Result* result);
     virtual Any run() = 0;
+private:
+    Result* result_; //Result对象的生命周期强于task
+};
+
+//实现接收提交到线程池task任务执行完成后的返回值
+class Result {
+public:
+    Result(std::shared_ptr<Task> task, bool isValid = true);
+    ~Result() = default;
+
+    //setVal方法，获取任务执行完的返回值的
+    void setVal(Any any);
+    //get方法，用户调用这个方法获取task的返回值
+    Any get();
+
+private:
+    Any any_; //存储任务的返回值
+    Semaphore sem_; //线程通信信号量
+    std::shared_ptr<Task> task_; //指向对应获取返回值的任务对象
+    std::atomic_bool isValid_; //返回值是否有效
 };
 
 // 线程池支持的模式
@@ -136,7 +163,7 @@ public:
 
     void setTaskQueMaxThreshhold(int taskQueMaxThreshhold); //设置task任务队列上线阈值
 
-    void submitTask(std::shared_ptr<Task> sp); //给线程池提交任务
+    Result submitTask(std::shared_ptr<Task> sp); //给线程池提交任务
 
     void start(int initThreadSize = 4); //开启线程池
     //禁止线程池的拷贝和赋值构造
