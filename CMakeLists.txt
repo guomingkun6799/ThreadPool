@@ -11,6 +11,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 add_executable(mythreadpool
     threadpool.cpp
     threadpool.h
+        using_example.cpp
 )
 
 target_compile_options(mythreadpool PRIVATE -Wall -Wextra -Wpedantic)

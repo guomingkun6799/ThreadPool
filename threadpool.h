@@ -56,6 +56,33 @@ private:
     std::unique_ptr<Base> base_;
 };
 
+//实现一个信号量类
+class Semaphore {
+public:
+    Semaphore(int limit = 0) :
+        resLimit_(limit)
+    {}
+    ~Semaphore() = default;
+
+    //获取一个信号资源
+    void wait() {
+        std::unique_lock<std::mutex> lock(mutex_);
+        //等待信号量有资源，没有资源就阻塞
+        cond_.wait(lock, [&]() -> bool {return resLimit_ > 0;});
+        resLimit_--;
+    }
+
+    //增加一个信号资源
+    void post() {
+        std::unique_lock<std::mutex> lock(mutex_);
+        resLimit_++;
+        cond_.notify_all();
+    }
+private:
+    int resLimit_;
+    std::mutex mutex_;
+    std::condition_variable cond_;
+};
 //任务抽象基类
 //用户可以自定义任意任务类型，从Task继承，重写run方法
 class Task {
