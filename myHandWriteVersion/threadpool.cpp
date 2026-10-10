@@ -25,10 +25,11 @@ ThreadPool::ThreadPool()
 
 //线程池析构
 ThreadPool::~ThreadPool() {
-    isPoolRunning_ = false;
-    //等待线程池里面所有线程返回 有两种状态：阻塞 & 正在执行任务中
+    //在锁的保护下修改退出标志并唤醒所有等待的线程，防止通知丢失
     std::unique_lock<std::mutex> lock(taskQueMtx_);
+    isPoolRunning_ = false;
     notEmpty_.notify_all();
+    //等待线程池里面所有线程返回 有两种状态：阻塞 & 正在执行任务中
     exitCond_.wait(lock, [&]() -> bool {return threads_.size() == 0;});
 }
 
@@ -146,6 +147,8 @@ void ThreadPool::threadFunc(int threadid) {
                             threads_.erase(threadid);
                             currentThreadSize_--;
                             idleThreadsSize_--;
+                            //通知析构函数：线程资源已全部回收
+                            exitCond_.notify_all();
                             return;
                         }
                     }
