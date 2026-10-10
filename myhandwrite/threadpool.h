@@ -13,6 +13,7 @@
 #include <condition_variable>
 #include <functional>
 #include <unordered_map>
+#include <thread>
 
 //Any类型：可以接收任意数据类型
 class Any {
@@ -173,7 +174,7 @@ public:
 
     Result submitTask(std::shared_ptr<Task> sp); //给线程池提交任务
 
-    void start(int initThreadSize = 4); //开启线程池
+    void start(int initThreadSize = std::thread::hardware_concurrency()); //开启线程池
     //禁止线程池的拷贝和赋值构造
     ThreadPool(const ThreadPool &) = delete;
     ThreadPool &operator=(const ThreadPool &) = delete;
